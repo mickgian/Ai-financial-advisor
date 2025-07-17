@@ -1,8 +1,23 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: aifinance
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: aifinance
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - monitoring
   # Single API service with dynamic environment
   app:
+    depends_on:
+      - db
     build:
       context: .
       args:
@@ -30,6 +45,7 @@ services:
     restart: on-failure
     networks:
       - monitoring
+
 
   # Prometheus
   prometheus:
@@ -79,4 +95,5 @@ networks:
     driver: bridge
 
 volumes:
+  db-data:
   grafana-storage: 
