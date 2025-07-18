@@ -32,7 +32,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-development}
       # Pass sensitive variables at runtime
-      - LLM_API_KEY=${LLM_API_KEY:-dummy-key-for-development}
+#      - LLM_API_KEY=${LLM_API_KEY} //if uncommented will overwrite .env.development etc files
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-supersecretkeythatshouldbechangedforproduction}
