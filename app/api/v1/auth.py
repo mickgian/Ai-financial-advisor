@@ -25,6 +25,7 @@ from app.core.logging import logger
 from app.models.session import Session
 from app.models.user import User
 from app.schemas.auth import (
+    RefreshTokenRequest,
     SessionResponse,
     TokenResponse,
     UserCreate,
@@ -33,6 +34,8 @@ from app.schemas.auth import (
 from app.services.database import DatabaseService
 from app.utils.auth import (
     create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
     verify_token,
 )
 from app.utils.sanitization import (
@@ -171,10 +174,23 @@ async def register_user(request: Request, user_data: UserCreate):
         # Create user
         user = await db_service.create_user(email=sanitized_email, password=User.hash_password(password))
 
-        # Create access token
-        token = create_access_token(str(user.id))
+        # Create both access and refresh tokens for new user
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(user.id)
+        
+        # Store refresh token hash in database for validation and revocation
+        await db_service.update_user_refresh_token(user.id, refresh_token.access_token)
+        
+        logger.info("user_registration_success", user_id=user.id, email=sanitized_email)
 
-        return UserResponse(id=user.id, email=user.email, token=token)
+        return UserResponse(
+            id=user.id, 
+            email=user.email, 
+            access_token=access_token.access_token,
+            refresh_token=refresh_token.access_token,
+            token_type="bearer",
+            expires_at=access_token.expires_at
+        )
     except ValueError as ve:
         logger.error("user_registration_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
@@ -220,8 +236,21 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        token = create_access_token(str(user.id))
-        return TokenResponse(access_token=token.access_token, token_type="bearer", expires_at=token.expires_at)
+        # Create both access and refresh tokens
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(user.id)
+        
+        # Store refresh token hash in database for validation and revocation
+        await db_service.update_user_refresh_token(user.id, refresh_token.access_token)
+        
+        logger.info("user_login_success", user_id=user.id, email=username)
+        
+        return TokenResponse(
+            access_token=access_token.access_token, 
+            refresh_token=refresh_token.access_token,
+            token_type="bearer", 
+            expires_at=access_token.expires_at
+        )
     except ValueError as ve:
         logger.error("login_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
@@ -349,3 +378,107 @@ async def get_user_sessions(user: User = Depends(get_current_user)):
     except ValueError as ve:
         logger.error("get_sessions_validation_failed", user_id=user.id, error=str(ve), exc_info=True)
         raise HTTPException(status_code=422, detail=str(ve))
+
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10 per minute")  # More restrictive rate limit for refresh tokens
+async def refresh_access_token(request: Request, refresh_request: RefreshTokenRequest):
+    """Exchange a refresh token for a new access token.
+    
+    This endpoint allows clients to obtain new access tokens without re-authentication.
+    The refresh token must be valid and not revoked.
+    
+    Args:
+        request: The FastAPI request object for rate limiting.
+        refresh_request: Contains the refresh token to exchange.
+        
+    Returns:
+        TokenResponse: New access token and refresh token pair.
+        
+    Raises:
+        HTTPException: If the refresh token is invalid, expired, or revoked.
+    """
+    try:
+        # Sanitize the refresh token
+        refresh_token = sanitize_string(refresh_request.refresh_token)
+        
+        # Verify the refresh token and get user ID
+        user_id = verify_refresh_token(refresh_token)
+        if user_id is None:
+            logger.warning("invalid_refresh_token", token_part=refresh_token[:10] + "...")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
+        # Get user from database
+        user = await db_service.get_user(user_id)
+        if user is None:
+            logger.error("user_not_found_for_refresh", user_id=user_id)
+            raise HTTPException(
+                status_code=404,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
+        # Verify the refresh token against the stored hash
+        if not user.verify_refresh_token(refresh_token):
+            logger.warning("refresh_token_hash_mismatch", user_id=user_id)
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
+        # Create new access and refresh tokens
+        new_access_token = create_access_token(str(user_id))
+        new_refresh_token = create_refresh_token(user_id)
+        
+        # Update the stored refresh token hash
+        await db_service.update_user_refresh_token(user_id, new_refresh_token.access_token)
+        
+        logger.info("access_token_refreshed", user_id=user_id)
+        
+        return TokenResponse(
+            access_token=new_access_token.access_token,
+            refresh_token=new_refresh_token.access_token,
+            token_type="bearer",
+            expires_at=new_access_token.expires_at
+        )
+        
+    except ValueError as ve:
+        logger.error("refresh_token_validation_failed", error=str(ve), exc_info=True)
+        raise HTTPException(status_code=422, detail=str(ve))
+
+
+@router.post("/logout")
+@limiter.limit("20 per minute")  # Allow reasonable logout frequency
+async def logout_user(request: Request, user: User = Depends(get_current_user)):
+    """Logout a user by revoking their refresh token.
+    
+    This endpoint revokes the user's refresh token, effectively logging them out
+    from all devices. Access tokens will remain valid until they expire (2 hours).
+    
+    Args:
+        request: The FastAPI request object for rate limiting.
+        user: The authenticated user from the access token.
+        
+    Returns:
+        dict: Success message confirming logout.
+    """
+    try:
+        # Revoke the user's refresh token
+        success = await db_service.revoke_user_refresh_token(user.id)
+        
+        if not success:
+            logger.error("logout_failed_user_not_found", user_id=user.id)
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        logger.info("user_logged_out", user_id=user.id, email=user.email)
+        
+        return {"message": "Successfully logged out"}
+        
+    except Exception as e:
+        logger.error("logout_failed", user_id=user.id, error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Logout failed")

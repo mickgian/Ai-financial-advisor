@@ -226,6 +226,47 @@ class DatabaseService:
         """
         return Session(self.engine)
 
+    async def update_user_refresh_token(self, user_id: int, refresh_token: str) -> bool:
+        """Update a user's refresh token hash.
+
+        Args:
+            user_id: The ID of the user to update
+            refresh_token: The new refresh token to hash and store
+
+        Returns:
+            bool: True if update was successful, False if user not found
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                return False
+
+            user.set_refresh_token_hash(refresh_token)
+            session.add(user)
+            session.commit()
+            logger.info("user_refresh_token_updated", user_id=user_id)
+            return True
+
+    async def revoke_user_refresh_token(self, user_id: int) -> bool:
+        """Revoke a user's refresh token by clearing the hash.
+
+        Args:
+            user_id: The ID of the user whose refresh token to revoke
+
+        Returns:
+            bool: True if revocation was successful, False if user not found
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                return False
+
+            user.revoke_refresh_token()
+            session.add(user)
+            session.commit()
+            logger.info("user_refresh_token_revoked", user_id=user_id)
+            return True
+
     async def health_check(self) -> bool:
         """Check database connection health.
 

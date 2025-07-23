@@ -31,13 +31,25 @@ class TokenResponse(BaseModel):
 
     Attributes:
         access_token: The JWT access token
+        refresh_token: The JWT refresh token for obtaining new access tokens
         token_type: The type of token (always "bearer")
-        expires_at: When the token expires
+        expires_at: When the access token expires
     """
 
     access_token: str = Field(..., description="The JWT access token")
+    refresh_token: str = Field(..., description="The JWT refresh token for obtaining new access tokens")
     token_type: str = Field(default="bearer", description="The type of token")
-    expires_at: datetime = Field(..., description="When the token expires")
+    expires_at: datetime = Field(..., description="When the access token expires")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request model for refresh token endpoint.
+
+    Attributes:
+        refresh_token: The refresh token to exchange for a new access token
+    """
+
+    refresh_token: str = Field(..., description="The refresh token to exchange for a new access token")
 
 
 class UserCreate(BaseModel):
@@ -92,12 +104,18 @@ class UserResponse(BaseModel):
     Attributes:
         id: User's ID
         email: User's email address
-        token: Authentication token
+        access_token: The JWT access token
+        refresh_token: The JWT refresh token for obtaining new access tokens
+        token_type: The type of token (always "bearer")
+        expires_at: When the access token expires
     """
 
     id: int = Field(..., description="User's ID")
     email: str = Field(..., description="User's email address")
-    token: Token = Field(..., description="Authentication token")
+    access_token: str = Field(..., description="The JWT access token")
+    refresh_token: str = Field(..., description="The JWT refresh token for obtaining new access tokens")
+    token_type: str = Field(default="bearer", description="The type of token")
+    expires_at: datetime = Field(..., description="When the access token expires")
 
 
 class SessionResponse(BaseModel):
