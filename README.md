@@ -1,195 +1,287 @@
-# FastAPI LangGraph Agent Template
+ # FastAPI LangGraph Backend Guidelines
 
-A production-ready FastAPI template for building AI agent applications with LangGraph integration. This template provides a robust foundation for building scalable, secure, and maintainable AI agent services.
+  ## Architecture
 
-## 🌟 Features
+  • Framework: FastAPI with Python 3.13+
+  • AI/LLM: LangGraph with OpenAI GPT models
+  • Database: PostgreSQL with SQLAlchemy ORM
+  • Authentication: JWT tokens with bcrypt password hashing
+  • Observability: Langfuse for LLM tracing
+  • Rate Limiting: slowapi (Flask-Limiter for FastAPI)
+  • Monitoring: Prometheus metrics + Grafana dashboards
+  • Package Management: UV for fast dependency management
 
-- **Production-Ready Architecture**
+  ## Prerequisites
 
-  - FastAPI for high-performance async API endpoints
-  - LangGraph integration for AI agent workflows
-  - Langfuse for LLM observability and monitoring
-  - Structured logging with environment-specific formatting
-  - Rate limiting with configurable rules
-  - PostgreSQL for data persistence
-  - Docker and Docker Compose support
-  - Prometheus metrics and Grafana dashboards for monitoring
+  • Python 3.13+
+  • UV package manager for dependency management
+  • PostgreSQL database
+  • Docker & Docker Compose (optional)
 
-- **Security**
+  ## Current Implementation Status
 
-  - JWT-based authentication
-  - Session management
-  - Input sanitization
-  - CORS configuration
-  - Rate limiting protection
+  • Authentication: ✅ JWT-based auth with registration/login
+  • Password Validation: ✅ 8+ chars, upper/lower, number, special char
+  • Error Handling: ✅ Structured validation errors (422) and business logic errors (400)
+  • User Management: ✅ User registration, login, profile management
+  • Session Management: ✅ Session creation and management
+  • Rate Limiting: ✅ Configurable per-endpoint limits
+  • Current Feature: Chat implementation with LangGraph integration
 
-- **Developer Experience**
+  ## Tech Stack
 
-  - Environment-specific configuration
-  - Comprehensive logging system
-  - Clear project structure
-  - Type hints throughout
-  - Easy local development setup
+  • Web Framework: FastAPI
+  • ORM: SQLAlchemy with async support
+  • Database: PostgreSQL
+  • LLM Framework: LangGraph
+  • Authentication: JWT with python-jose
+  • Password Hashing: bcrypt
+  • Validation: Pydantic models
+  • Testing: pytest with async support
+  • Rate Limiting: slowapi
+  • Observability: Langfuse
+  • Metrics: Prometheus
+  • Monitoring: Grafana
+  • Package Manager: UV
 
-- **Model Evaluation Framework**
-  - Automated metric-based evaluation of model outputs
-  - Integration with Langfuse for trace analysis
-  - Detailed JSON reports with success/failure metrics
-  - Interactive command-line interface
-  - Customizable evaluation metrics
+  ## Development Setup
 
-## 🚀 Quick Start
+  • Install dependencies: `uv sync`
+  • Copy environment: `cp .env.example .env.development`
+  • Run development server: `make dev`
+  • Run staging: `make staging`
+  • Run production: `make production`
+  • Swagger docs: http://localhost:8000/docs
 
-### Prerequisites
+  ### Docker Development
+  • Build Docker: `make docker-build-env ENV=development`
+  • Run Docker: `make docker-run-env ENV=development`
 
-- Python 3.13+
-- PostgreSQL ([see Database setup](#database-setup))
-- Docker and Docker Compose (optional)
+  ## Key Commands
 
-### Environment Setup
+  • Start server: `make dev` (or `uvicorn app.main:app --reload --port 8000`)
+  • Run tests: `pytest`
+  • Run tests with coverage: `pytest --cov=app`
+  • Database migrations: `alembic upgrade head`
+  • Create migration: `alembic revision --autogenerate -m "description"`
+  • Install dependencies: `uv sync`
 
-1. Clone the repository:
+  ## Development Notes
 
-```bash
-git clone <repository-url>
-cd <project-directory>
-```
+  • JWT tokens: 30 days access + 365 days refresh (development) - TODO: reduce for production
+  • Server runs on: http://localhost:8000
+  • API docs: http://localhost:8000/docs
+  • Current branch: main (or specify current feature branch)
 
-2. Create and activate a virtual environment:
+  ## API Architecture
 
-```bash
-uv sync
-```
+  • Base URL: `/api/v1`
+  • Authentication endpoints: `/api/v1/auth/`
+  • Chat endpoints: `/api/v1/chat/`
+  • User endpoints: `/api/v1/users/`
+  • Health check: `/health`
 
-3. Copy the example environment file:
+  ## Error Response Format
 
-```bash
-cp .env.example .env.[development|staging|production] # e.g. .env.development
-```
+  • **422 Validation Errors**:
+  ```json
+  {
+    "detail": "Validation error",
+    "errors": [
+      {"field": "password", "message": "Password must contain at least one number"}
+    ]
+  }
 
-4. Update the `.env` file with your configuration (see `.env.example` for reference)
+  • 400 Business Logic Errors:
+  {
+    "detail": "Email already registered"
+  }
 
-### Database setup
+  • 401 Authentication Errors:
+  {
+    "detail": "Invalid credentials"
+  }
+````
+  ## Database Management
 
-1. Create a PostgreSQL database (e.g Supabase or local PostgreSQL)
-2. Update the database connection string in your `.env` file:
+  • ORM handles table creation automatically
+  • Manual schema: Run schemas.sql if needed
+  • Connection format: postgresql://user:pass@host:port/dbname
+  • Tables: Users, Sessions, Messages, checkpoint tables for LangGraph
+  • Use Alembic for migrations
+  • Follow SQLAlchemy async patterns
 
-```bash
-POSTGRES_URL="postgresql://:your-db-password@POSTGRES_HOST:POSTGRES_PORT/POSTGRES_DB"
-```
+  ## Database Schema
 
-- You don't have to create the tables manually, the ORM will handle that for you.But if you faced any issues,please run the `schemas.sql` file to create the tables manually.
+  • Users table: id, email, hashed_password, created_at, updated_at
+  • Sessions table: session_id, user_id, name, created_at
+  • Messages table: id, session_id, content, role, timestamp
+  • Checkpoint tables: checkpoint_blobs, checkpoint_writes, checkpoints (for LangGraph)
 
-### Running the Application
+  ## LangGraph Configuration
 
-#### Local Development
+  • Default model: gpt-4o-mini
+  • Temperature: 0.2
+  • Max tokens: 2000
+  • Retry attempts: 3
+  • Langfuse integration for tracing
+  • Graph state management for conversation flow
+  • Checkpoint persistence in PostgreSQL
 
-1. Install dependencies:
+  ## Monitoring Stack
 
-```bash
-uv sync
-```
-
-2. Run the application:
-
-```bash
-make [dev|staging|production] # e.g. make dev
-```
-
-1. Go to Swagger UI:
-
-```bash
-http://localhost:8000/docs
-```
-
-#### Using Docker
-
-1. Build and run with Docker Compose:
-
-```bash
-make docker-build-env ENV=[development|staging|production] # e.g. make docker-build-env ENV=development
-make docker-run-env ENV=[development|staging|production] # e.g. make docker-run-env ENV=development
-```
-
-2. Access the monitoring stack:
-
-```bash
-# Prometheus metrics
-http://localhost:9090
-
-# Grafana dashboards
-http://localhost:3000
-Default credentials:
-- Username: admin
-- Password: admin
-```
-
-The Docker setup includes:
-
-- FastAPI application
-- PostgreSQL database
-- Prometheus for metrics collection
-- Grafana for metrics visualization
-- Pre-configured dashboards for:
+  • Prometheus metrics: http://localhost:9090
+  • Grafana dashboards: http://localhost:3000 (admin/admin)
+  • Langfuse LLM tracing integration
+  • Pre-configured dashboards for:
   - API performance metrics
   - Rate limiting statistics
   - Database performance
   - System resource usage
 
-## 📊 Model Evaluation
+  ## Model Evaluation
 
-The project includes a robust evaluation framework for measuring and tracking model performance over time. The evaluator automatically fetches traces from Langfuse, applies evaluation metrics, and generates detailed reports.
+  • Interactive evaluation: make eval
+  • Quick evaluation: make eval-quick
+  • No-report evaluation: make eval-no-report
+  • Custom metrics: Add markdown files to evals/metrics/prompts/
+  • Reports generated in: evals/reports/evaluation_report_YYYYMMDD_HHMMSS.json
+  • Metrics include: success rate, timing, trace-level details
 
-### Running Evaluations
+  ## Evaluation Features
 
-You can run evaluations with different options using the provided Makefile commands:
+  • Interactive CLI with colored output and progress bars
+  • Flexible configuration with runtime customization
+  • Detailed JSON reports with comprehensive metrics
+  • Automatic Langfuse trace fetching and analysis
 
-```bash
-# Interactive mode with step-by-step prompts
-make eval [ENV=development|staging|production]
+  ## Security Guidelines
 
-# Quick mode with default settings (no prompts)
-make eval-quick [ENV=development|staging|production]
+  • Password requirements: 8+ chars, uppercase, lowercase, number, special char
+  • JWT secret key must be set in environment variables
+  • Rate limiting applied to all endpoints
+  • Input validation using Pydantic models
+  • SQL injection protection via SQLAlchemy ORM
+  • CORS configured for frontend origins
+  • Input sanitization for all user inputs
 
-# Evaluation without report generation
-make eval-no-report [ENV=development|staging|production]
+  ## Environment Variables
+
+  # Required
+  JWT_SECRET_KEY=your-secret-key
+  POSTGRES_URL=postgresql://user:pass@localhost/dbname
+  LLM_API_KEY=your-openai-api-key
+
+  # Optional with defaults
+  JWT_ACCESS_TOKEN_EXPIRE_HOURS=720  # 30 days for dev
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS=365
+  LLM_MODEL=gpt-4o-mini
+  LANGFUSE_PUBLIC_KEY=your-key
+  LANGFUSE_SECRET_KEY=your-secret
+  EVALUATION_LLM=gpt-4o-mini
+  EVALUATION_API_KEY=your-openai-key
+
+  ## Environment-Specific Configuration
+
+  • .env.development - Local development settings
+  • .env.staging - Staging environment
+  • .env.production - Production environment
+  • .env.example - Template with all available options
+
+  ## Coding Standards
+
+  • Use async/await for all database operations
+  • Follow PEP 8 style guidelines
+  • Use type hints throughout the codebase
+  • Keep functions focused on single responsibility
+  • Use dependency injection for database sessions
+  • Handle exceptions with appropriate HTTP status codes
+  • Log all authentication attempts and errors
+  • Structured logging with environment-specific formatting
+
+  ## Testing Requirements
+
+  • Unit tests for all business logic
+  • Integration tests for API endpoints
+  • Test database fixtures for clean test data
+  • Mock external API calls (OpenAI, Langfuse)
+  • Test authentication flows thoroughly
+  • Aim for 80%+ code coverage
+  • Use pytest with async support
+
+  ## Directory Structure
+```
+  app/
+  ├── api/v1/          # API route handlers
+  ├── core/            # Core utilities, config, security
+  ├── models/          # SQLAlchemy models
+  ├── schemas/         # Pydantic models
+  ├── services/        # Business logic layer
+  ├── utils/           # Helper utilities
+  ├── main.py          # FastAPI application entry point
+  evals/
+  ├── metrics/prompts/ # Evaluation metric definitions
+  ├── reports/         # Generated evaluation reports
+  └── evaluator.py     # Evaluation framework
+  docker/              # Docker configuration files
+  monitoring/          # Prometheus & Grafana configs
 ```
 
-### Evaluation Features
+  ## Rate Limiting Configuration
 
-- **Interactive CLI**: User-friendly interface with colored output and progress bars
-- **Flexible Configuration**: Set default values or customize at runtime
-- **Detailed Reports**: JSON reports with comprehensive metrics including:
-  - Overall success rate
-  - Metric-specific performance
-  - Duration and timing information
-  - Trace-level success/failure details
+  • Default limits: 200 per day, 50 per hour
+  • Endpoint-specific limits:
+  - Chat: 30 per minute
+  - Chat stream: 20 per minute
+  - Register: 10 per hour
+  - Login: 20 per minute
+  • Configurable via environment variables
 
-### Customizing Metrics
+  ## Common Tasks
 
-Evaluation metrics are defined in `evals/metrics/prompts/` as markdown files:
+  • Add new endpoint: Create route in api/v1/, add schema, implement service
+  • Database changes: Create Alembic migration, update models
+  • Add authentication: Use get_current_user dependency
+  • Rate limiting: Apply @limiter.limit() decorator
+  • LLM integration: Use LangGraph state management patterns
+  • Add evaluation metric: Create markdown file in evals/metrics/prompts/
 
-1. Create a new markdown file (e.g., `my_metric.md`) in the prompts directory
-2. Define the evaluation criteria and scoring logic
-3. The evaluator will automatically discover and apply your new metric
+  ## Troubleshooting
 
-### Viewing Reports
+  • Database connection issues: Check POSTGRES_URL and ensure PostgreSQL is running
+  • JWT token errors: Verify JWT_SECRET_KEY is set and consistent
+  • Rate limiting issues: Check slowapi configuration and Redis connection
+  • LLM API errors: Verify LLM_API_KEY and check OpenAI quota
+  • Langfuse connection: Check LANGFUSE_* environment variables
+  • Docker issues: Ensure Docker daemon is running and ports are available
+  • Evaluation failures: Check evaluation model API key and Langfuse configuration
 
-Reports are automatically generated in the `evals/reports/` directory with timestamps in the filename:
+  ## Performance Considerations
 
-```
-evals/reports/evaluation_report_YYYYMMDD_HHMMSS.json
-```
+  • Use async database operations throughout
+  • Implement connection pooling for PostgreSQL
+  • Cache frequently accessed data where appropriate
+  • Monitor LLM API usage and costs via Langfuse
+  • Use pagination for large data sets
+  • Optimize database queries with proper indexing
+  • Monitor system metrics via Prometheus/Grafana
 
-Each report includes:
+  ## Production Deployment
 
-- High-level statistics (total trace count, success rate, etc.)
-- Per-metric performance metrics
-- Detailed trace-level information for debugging
+  • Set secure JWT_SECRET_KEY in production
+  • Use environment-specific configuration files
+  • Set up proper logging and monitoring
+  • Configure rate limiting based on expected traffic
+  • Secure database with proper credentials
+  • Set up SSL/TLS for production
+  • Monitor via Grafana dashboards
+  • Set up automated backups for PostgreSQL
+  • Configure appropriate resource limits
 
-## 🔧 Configuration
+  ## Monitoring & Debugging
 
-The application uses a flexible configuration system with environment-specific settings:
-
-- `.env.development`
--
+  • Use Langfuse for LLM call tracing and debugging
+  • Monitor API performance via Prometheus metrics
+  • View system health via Grafana dashboards
+  • Check application logs for detailed error information
+  • Use evaluation reports to track model performance over time
