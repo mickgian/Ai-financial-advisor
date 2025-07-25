@@ -21,3 +21,6 @@ wheels/
 
 # Reports
 evals/reports/
+
+# Claude Code memory files - keep local only
+CLAUDE.md

@@ -142,6 +142,12 @@ class SessionResponse(BaseModel):
         Returns:
             str: The sanitized name
         """
-        # Remove any potentially harmful characters
-        sanitized = re.sub(r'[<>{}[\]()\'"`]', "", v)
+        # Remove only dangerous HTML/script characters, keep apostrophes and quotes for natural text
+        sanitized = re.sub(r'[<>{}[\]()]', "", v)
+        # Decode HTML entities - may need multiple passes for double-encoded entities
+        import html
+        # First pass - decode standard entities
+        sanitized = html.unescape(sanitized)
+        # Second pass - handle cases like &amp;#x27; -> &#x27; -> '
+        sanitized = html.unescape(sanitized)
         return sanitized
